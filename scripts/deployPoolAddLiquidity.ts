@@ -111,7 +111,7 @@ async function main() {
   })
 
   // await wethContract.approve(positionManager.target, ethers.parseEther('9999999'));
-  await usdtContract.approve(positionManager.target, ethers.parseEther('9999999'));
+  await usdtContract.approve(positionManager.target, ethers.parseEther('9999999'))
 
   const { amount0: amount0Desired, amount1: amount1Desired } = position.mintAmounts
   console.log(await wethContract.balanceOf(signer.address), await usdtContract.balanceOf(signer.address))
