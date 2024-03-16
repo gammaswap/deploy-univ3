@@ -59,6 +59,7 @@
     "ethers": "^6.4.0",
     "ganache-cli": "^6.12.2",
     "hardhat": "^2.14.0",
+    "hardhat-contract-sizer": "^2.10.0",
     "hardhat-gas-reporter": "^1.0.8",
     "immer": "^10.0.3",
     "prettier": "^3.2.5",
