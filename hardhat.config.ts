@@ -4,7 +4,7 @@ import { HardhatUserConfig } from 'hardhat/config'
 import '@nomicfoundation/hardhat-toolbox'
 import '@nomicfoundation/hardhat-foundry'
 
-require("hardhat-contract-sizer"); // "npx hardhat size-contracts" or "yarn run hardhat size-contracts"
+require('hardhat-contract-sizer') // "npx hardhat size-contracts" or "yarn run hardhat size-contracts"
 
 dotenv.config()
 
