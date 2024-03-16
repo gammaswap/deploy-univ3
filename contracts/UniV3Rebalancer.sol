@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.21;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -7,14 +7,14 @@ import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
 
 import "./interfaces/IExternalCallee.sol";
 import "./interfaces/IWETH9.sol";
-import "./interfaces/ISwapRouter.sol";
+import "./interfaces/ISwapRouter02.sol";
 
 import "./libraries/Path.sol";
 import "./libraries/PoolAddress.sol";
 import "./libraries/CallbackValidation.sol";
 import "./libraries/TickMath.sol";
 
-contract UniV3Rebalancer is IExternalCallee, ISwapRouter {
+contract UniV3Rebalancer is IExternalCallee, ISwapRouter02 {
     using Path for bytes;
 
     struct RebalanceData {
@@ -87,6 +87,30 @@ contract UniV3Rebalancer is IExternalCallee, ISwapRouter {
                 tokenIn = tokenOut; // swap in/out because exact output swaps are reversed
                 pay(tokenIn, data.payer, msg.sender, amountToPay);
             }
+        }
+    }
+
+    /// @inheritdoc ISwapRouter02
+    function swapExactInputSingle(ExactInputSingleParams memory params) external virtual override returns(uint256 amountOut) {
+        // Transfer the specified amount of tokenIn to this contract.
+        TransferHelper.safeTransferFrom(params.tokenIn, msg.sender, address(this), params.amountIn);
+
+        // Execute the swap for exact input
+        amountOut = exactInputSingle(params);
+    }
+
+    /// @inheritdoc ISwapRouter02
+    function swapExactOutputSingle(ExactOutputSingleParams memory params) external virtual override returns(uint256 amountIn) {
+        // Transfer the specified amount of tokenIn to this contract.
+        TransferHelper.safeTransferFrom(params.tokenIn, msg.sender, address(this), params.amountInMaximum);
+
+        // Executes the swap returning the amountIn needed to spend to receive the desired amountOut.
+        amountIn = exactOutputSingle(params);
+
+        // For exact output swaps, the amountInMaximum may not have all been spent.
+        // If the actual amount spent (amountIn) is less than the specified maximum amount, we must refund the msg.sender
+        if (amountIn < params.amountInMaximum) {
+            TransferHelper.safeTransfer(params.tokenIn, msg.sender, params.amountInMaximum - amountIn);
         }
     }
 

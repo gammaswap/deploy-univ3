@@ -1,6 +1,6 @@
 {
   "name": "@gammaswap/univ3-rebalancer",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Uniswap V3 rebalancer smart contracts for gammaswap",
   "scripts": {
     "test": "mocha",
@@ -30,7 +30,7 @@
     "name": "GammaSwap Labs",
     "url": "https://gammaswap.com"
   },
-  "license": "MIT",
+  "license": "GPL-2.0-or-later",
   "homepage": "https://gammaswap.com",
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
