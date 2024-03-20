@@ -13,7 +13,6 @@ import "./libraries/Path.sol";
 import "./libraries/PoolAddress.sol";
 import "./libraries/CallbackValidation.sol";
 import "./libraries/TickMath.sol";
-import "forge-std/Test.sol";
 
 contract UniV3Rebalancer is IExternalCallee, ISwapRouter {
     using Path for bytes;
@@ -94,8 +93,7 @@ contract UniV3Rebalancer is IExternalCallee, ISwapRouter {
             // either initiate the next swap or pay
             if (data.path.hasMultiplePools()) {
                 data.path = data.path.skipToken();
-                exactOutputInternal(amountToPay, address(this), 0, data);
-                // exactOutputInternal(amountToPay, msg.sender, 0, data);
+                exactOutputInternal(amountToPay, msg.sender, 0, data);
             } else {
                 amountInCached = amountToPay;
                 tokenIn = tokenOut; // swap in/out because exact output swaps are reversed
@@ -129,8 +127,8 @@ contract UniV3Rebalancer is IExternalCallee, ISwapRouter {
         returns (uint256 amountOut)
     {
         require(block.timestamp <= params.deadline, "Transaction too old");
-        address payer = address(this);
-        console.log("Exact Input");
+        address payer = address(this);  // This contract pays for the first hop
+
         while (true) {
             bool hasMultiplePools = params.path.hasMultiplePools();
 
@@ -188,7 +186,7 @@ contract UniV3Rebalancer is IExternalCallee, ISwapRouter {
         require(block.timestamp <= params.deadline, "Transaction too old");
         // it's okay that the payer is fixed to msg.sender here, as they're only paying for the "final" exact output
         // swap, which happens first, and subsequent swaps are paid for within nested callback frames
-        console.log("Exact Output");
+
         exactOutputInternal(
             params.amountOut,
             params.recipient,
@@ -297,7 +295,7 @@ contract UniV3Rebalancer is IExternalCallee, ISwapRouter {
         uint160 sqrtPriceLimitX96,
         SwapCallbackData memory data
     ) private returns (uint256 amountOut) {
-        require(amountOut < 2**255, "Invalid amount");
+        require(amountIn < 2**255, "Invalid amount");
         // allow swapping to the router address with address 0
         if (recipient == address(0)) recipient = address(this);
 
@@ -333,7 +331,6 @@ contract UniV3Rebalancer is IExternalCallee, ISwapRouter {
         (address tokenOut, address tokenIn, uint24 fee) = data.path.decodeFirstPool();
 
         bool zeroForOne = tokenIn < tokenOut;
-        console.log("************", recipient);
         (int256 amount0Delta, int256 amount1Delta) =
             getPool(tokenIn, tokenOut, fee).swap(
                 recipient,
@@ -344,14 +341,14 @@ contract UniV3Rebalancer is IExternalCallee, ISwapRouter {
                     : sqrtPriceLimitX96,
                 abi.encode(data)
             );
-        console.log("=============");
+
         uint256 amountOutReceived;
         (amountIn, amountOutReceived) = zeroForOne
             ? (uint256(amount0Delta), uint256(-amount1Delta))
             : (uint256(amount1Delta), uint256(-amount0Delta));
         // it's technically possible to not receive the full output amount,
         // so if no price limit has been specified, require this possibility away
-        if (sqrtPriceLimitX96 == 0) require(amountOutReceived == amountOut);
+        if (sqrtPriceLimitX96 == 0) require(amountOutReceived == amountOut, "Swap failed");
     }
 
     function pay(
