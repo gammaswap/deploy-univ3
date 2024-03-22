@@ -5,17 +5,7 @@ import "./fixtures/TestBed.sol";
 import "../../contracts/UniV3Rebalancer.sol";
 
 contract UniV3RebalanerFuzz is TestBed {
-    event ExternalRebalanceSingleSwap(
-        address indexed sender,
-        address indexed caller,
-        uint256 indexed tokenId,
-        address tokenIn,
-        address tokenOut,
-        uint24 poolFee,
-        uint256 amountIn,
-        uint256 amountOut,
-        bool isBuy
-    );
+    
 
     UniV3Rebalancer rebalancer;
 
@@ -48,15 +38,15 @@ contract UniV3RebalanerFuzz is TestBed {
             deltas[1] = isBuy ? int256(delta) : -int256(delta);
         }
 
-        // address tokenIn = deltas[0] < 0 || deltas[1] > 0 ? address(weth) : address(usdc);
-        // address tokenOut = deltas[0] < 0 || deltas[1] > 0 ? address(usdc) : address(weth);
-
         uint256[] memory amountsLimit = new uint256[](2);
         if (isToken0) {
             amountsLimit[1] = isBuy ? type(uint256).max : 0;
         } else {
             amountsLimit[0] = isBuy ? type(uint256).max : 0;
         }
+
+        weth.mint(address(rebalancer), 20);
+        usdc.mint(address(rebalancer), 50_000);
 
         UniV3Rebalancer.RebalanceData memory data = UniV3Rebalancer.RebalanceData({
             tokens: tokens,
@@ -68,37 +58,56 @@ contract UniV3RebalanerFuzz is TestBed {
             tokenId: 100,
             path: ""
         });
-        weth.mint(address(rebalancer), 20);
-        usdc.mint(address(rebalancer), 50_000);
 
-        uint128[] memory amounts = new uint128[](2);
+        // Reverts
+        {
+            uint128[] memory amounts = new uint128[](2);
+            vm.expectRevert("UniV3Rebalancer: Invalid deposit");
+            rebalancer.externalCall(vm.addr(1), amounts, 1000, abi.encode(data));
 
-        vm.expectRevert("UniV3Rebalancer: Invalid deposit");
-        rebalancer.externalCall(vm.addr(1), amounts, 1000, abi.encode(data));
+            amounts[0] = 20e18 + 1;
+            vm.expectRevert("UniV3Rebalancer: Invalid token amount");
+            rebalancer.externalCall(vm.addr(1), amounts, 0, abi.encode(data));
 
-        amounts[0] = 20e18 + 1;
-        vm.expectRevert("UniV3Rebalancer: Invalid token amount");
-        rebalancer.externalCall(vm.addr(1), amounts, 0, abi.encode(data));
+            UniV3Rebalancer.RebalanceData memory tempData = UniV3Rebalancer.RebalanceData({
+                tokens: tokens,
+                deltas: new int256[](2),
+                amountsLimit: amountsLimit,
+                poolFee: poolFee1,
+                sqrtPriceLimit: 0,
+                deadline: type(uint256).max,
+                tokenId: 100,
+                path: ""
+            });
+            vm.expectRevert("UniV3Rebalancer: Invalid deltas");
+            rebalancer.externalCall(vm.addr(1), new uint128[](2), 0, abi.encode(tempData));
+        }
 
-        UniV3Rebalancer.RebalanceData memory tempData = UniV3Rebalancer.RebalanceData({
-            tokens: tokens,
-            deltas: new int256[](2),
-            amountsLimit: amountsLimit,
-            poolFee: poolFee1,
-            sqrtPriceLimit: 0,
-            deadline: type(uint256).max,
-            tokenId: 100,
-            path: ""
-        });
-        vm.expectRevert("UniV3Rebalancer: Invalid deltas");
-        rebalancer.externalCall(vm.addr(1), new uint128[](2), 0, abi.encode(tempData));
+        // Pass
+        {
+            uint128[] memory amounts = new uint128[](2);
+            amounts[0] = 20e18;
+            amounts[1] = 50_000e6;
 
-        amounts[0] = 20e18;
-        amounts[1] = 50_000e6;
+            (address tokenIn, address tokenOut) = deltas[0] < 0 || deltas[1] > 0 ? (address(weth), address(usdc)) : (address(usdc), address(weth));
+            (uint256 amountIn, uint256 amountOut) = isBuy ? (uint256(0), delta) : (delta, uint256(0));
+            SingleSwapEventParams memory params = SingleSwapEventParams({
+                sender: vm.addr(1),
+                caller: address(this),
+                tokenId: 100,
+                tokenIn: tokenIn,
+                tokenOut: tokenOut,
+                poolFee: poolFee1,
+                amountIn: amountIn,
+                amountOut: amountOut,
+                isBuy: isBuy
+            });
+            params = _quoteSingleSwap(params);
 
-        // vm.expectEmit(true, true, false, true, address(rebalancer));
-        // emit ExternalRebalanceSingleSwap(vm.addr(1), address(this), 100, tokenIn, tokenOut, poolFee1, 0, 0, isBuy);
-        rebalancer.externalCall(vm.addr(1), amounts, 0, abi.encode(data));
+            vm.expectEmit();
+            emit ExternalRebalanceSingleSwap(params.sender, params.caller, params.tokenId, params.tokenIn, params.tokenOut, params.poolFee, params.amountIn, params.amountOut, params.isBuy);
+            rebalancer.externalCall(vm.addr(1), amounts, 0, abi.encode(data));
+        }
 
         assertGt(weth.balanceOf(address(this)), 0);
         assertGt(usdc.balanceOf(address(this)), 0);
@@ -158,7 +167,26 @@ contract UniV3RebalanerFuzz is TestBed {
         amounts[0] = 10_000e6;
         amounts[1] = 10_000e6;
 
-        rebalancer.externalCall(vm.addr(1), amounts, 0, abi.encode(data));
+        // Avoid stack-too-deep
+        {
+            (address tokenIn, address tokenOut) = deltas[0] > 0 || deltas[1] < 0 ? (address(usdt),  address(usdc)) : (address(usdc),  address(usdt));
+            (uint256 amountIn, uint256 amountOut) = isBuy ? (uint256(0), delta) : (delta, uint256(0));
+            MultihopSwapEventParams memory params = MultihopSwapEventParams({
+                sender: vm.addr(1),
+                caller: address(this),
+                tokenId: 100,
+                tokenIn: tokenIn,
+                tokenOut: tokenOut,
+                amountIn: amountIn,
+                amountOut: amountOut,
+                isBuy: isBuy
+            });
+            params = _quoteSwap(params, path);
+
+            vm.expectEmit();
+            emit ExternalRebalanceSwap(params.sender, params.caller, params.tokenId, params.tokenIn, params.tokenOut, params.amountIn, params.amountOut, params.isBuy);
+            rebalancer.externalCall(vm.addr(1), amounts, 0, abi.encode(data));
+        }
 
         assertGt(usdc.balanceOf(address(this)), 0);
         assertGt(usdt.balanceOf(address(this)), 0);
@@ -167,5 +195,41 @@ contract UniV3RebalanerFuzz is TestBed {
         } else if (!isToken0 && isBuy) {
             assertGt(usdt.balanceOf(address(this)), delta);
         }
+    }
+
+    function _quoteSingleSwap(SingleSwapEventParams memory params) internal returns (SingleSwapEventParams memory) {
+        if (params.isBuy) {
+            IQuoterV2.QuoteExactOutputSingleParams memory outputParams = IQuoterV2.QuoteExactOutputSingleParams({
+                tokenIn: params.tokenIn,
+                tokenOut: params.tokenOut,
+                amount: params.amountOut,
+                fee: params.poolFee,
+                sqrtPriceLimitX96: 0
+            });
+            (uint256 amountIn,,,) = quoter.quoteExactOutputSingle(outputParams);
+            params.amountIn = amountIn;
+        } else {
+            IQuoterV2.QuoteExactInputSingleParams memory inputParams = IQuoterV2.QuoteExactInputSingleParams({
+                tokenIn: params.tokenIn,
+                tokenOut: params.tokenOut,
+                amountIn: params.amountIn,
+                fee: params.poolFee,
+                sqrtPriceLimitX96: 0
+            });
+            (uint256 amountOut,,,) = quoter.quoteExactInputSingle(inputParams);
+            params.amountOut = amountOut;
+        }
+        return params;
+    }
+
+    function _quoteSwap(MultihopSwapEventParams memory params, bytes memory path) internal returns (MultihopSwapEventParams memory) {
+        if (params.isBuy) {
+            (uint256 amountIn,,,) = quoter.quoteExactOutput(path, params.amountOut);
+            params.amountIn = amountIn;
+        } else {
+            (uint256 amountOut,,,) = quoter.quoteExactInput(path, params.amountIn);
+            params.amountOut = amountOut;
+        }
+        return params;
     }
 }

@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/IPoolInitializer.sol";
+import "@uniswap/swap-router-contracts/contracts/interfaces/IQuoterV2.sol";
 
 import "../../../contracts/interfaces/IPositionManagerMintable.sol";
 import "./TokensSetup.sol";
@@ -13,6 +14,7 @@ contract UniswapSetup is TokensSetup {
     IUniswapV3Factory public uniFactory;
     IUniswapV3Pool public wethUsdcPool;
     IUniswapV3Pool public wethUsdtPool;
+    IQuoterV2 public quoter;
 
     uint24 public immutable poolFee1 = 10000;    // fee 1%
     uint24 public immutable poolFee2 = 500;    // fee 0.05%
@@ -41,6 +43,11 @@ contract UniswapSetup is TokensSetup {
         address nftPositionManager;
         assembly {
             nftPositionManager := create(0, add(nftPositionManagerBytecode, 0x20), mload(nftPositionManagerBytecode))
+        }
+
+        bytes memory quoterBytecode = abi.encodePacked(vm.getCode("./node_modules/@uniswap/swap-router-contracts/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json"), abi.encode(address(uniFactory), address(weth)));
+        assembly {
+            sstore(quoter.slot, create(0, add(quoterBytecode, 0x20), mload(quoterBytecode)))
         }
 
         // Deploy Weth/Usdc pool

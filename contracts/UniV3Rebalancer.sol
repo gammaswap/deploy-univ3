@@ -13,6 +13,7 @@ import "./libraries/Path.sol";
 import "./libraries/PoolAddress.sol";
 import "./libraries/CallbackValidation.sol";
 import "./libraries/TickMath.sol";
+import "forge-std/Test.sol";
 
 contract UniV3Rebalancer is IExternalCallee, ISwapRouter {
     using Path for bytes;
@@ -230,8 +231,8 @@ contract UniV3Rebalancer is IExternalCallee, ISwapRouter {
                     amountInMaximum: data.amountsLimit[1 - activeIndex],
                     sqrtPriceLimitX96: data.sqrtPriceLimit
                 });
-                uint256 amountIn = exactOutputSingle(params);
 
+                uint256 amountIn = exactOutputSingle(params);
                 emit ExternalRebalanceSingleSwap(sender, caller, data.tokenId, params.tokenIn, params.tokenOut, params.fee, amountIn, params.amountOut, true);
             } else {
                 ISwapRouter.ExactOutputParams memory params =
@@ -245,7 +246,8 @@ contract UniV3Rebalancer is IExternalCallee, ISwapRouter {
 
                 // Executes the swap, returning the amountIn actually spent.
                 uint256 amountIn = exactOutput(params);
-                emit ExternalRebalanceSwap(sender, caller, data.tokenId, data.tokens[1 - activeIndex], data.tokens[activeIndex], amountIn, params.amountOut, true);
+                // At this point, params.amountOut is mutated
+                emit ExternalRebalanceSwap(sender, caller, data.tokenId, data.tokens[1 - activeIndex], data.tokens[activeIndex], amountIn, uint256(deltas[activeIndex]), true);
             }
         } else if (deltas[0] < 0 || deltas[1] < 0) {
             uint256 activeIndex = deltas[0] < 0 ? 0 : 1;
@@ -261,8 +263,8 @@ contract UniV3Rebalancer is IExternalCallee, ISwapRouter {
                     amountOutMinimum: data.amountsLimit[1 - activeIndex],
                     sqrtPriceLimitX96: data.sqrtPriceLimit
                 });
-                uint256 amountOut = exactInputSingle(params);
 
+                uint256 amountOut = exactInputSingle(params);
                 emit ExternalRebalanceSingleSwap(sender, caller, data.tokenId, params.tokenIn, params.tokenOut, params.fee, params.amountIn, amountOut, false);
             } else {
                 ISwapRouter.ExactInputParams memory params =
@@ -276,7 +278,8 @@ contract UniV3Rebalancer is IExternalCallee, ISwapRouter {
 
                 // Executes the swap.
                 uint256 amountOut = exactInput(params);
-                emit ExternalRebalanceSwap(sender, caller, data.tokenId, data.tokens[activeIndex], data.tokens[1 - activeIndex], params.amountIn, amountOut, true);
+                // At this point, params.amountIn is mutated
+                emit ExternalRebalanceSwap(sender, caller, data.tokenId, data.tokens[activeIndex], data.tokens[1 - activeIndex], uint256(-deltas[activeIndex]), amountOut, false);
             }
         }
 
