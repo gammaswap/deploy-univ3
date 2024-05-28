@@ -42,14 +42,14 @@ const config: HardhatUserConfig = {
     baseSepolia: {
       url: `https://base-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_BASE_SEPOLIA_API_KEY}`,
       accounts: {
-        mnemonic: process.env.BASE_SEPOLIA_MNEMONIC || "",
+        mnemonic: process.env.BASE_SEPOLIA_MNEMONIC || '',
       },
       chainId: 84532,
     },
     sepolia: {
       url: `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_SEPOLIA_API_KEY}`,
       accounts: {
-        mnemonic: process.env.SEPOLIA_MNEMONIC || "",
+        mnemonic: process.env.SEPOLIA_MNEMONIC || '',
       },
       chainId: 11155111,
     },
