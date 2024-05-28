@@ -63,7 +63,7 @@ async function main() {
 
   // ================= Add Liquidity =================== //
   const poolContract = new ethers.Contract(poolAddress, UniswapV3Pool.abi, signer)
-  const LIQUIDITY = ethers.parseEther('1')
+  const LIQUIDITY = ethers.parseEther('0.000001')
   const DEADLINE = Math.floor(Date.now() / 1000) + 60 * 10
 
   const WethToken = new Token(network.config.chainId!, wethAddress, 18, 'WETH', 'Wrapped Ether')
